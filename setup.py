@@ -111,19 +111,19 @@ class custom_build_ext(build_ext):
 
 ext_modules = [
     Extension(
-        "utils.cython_bbox",
-        ["utils/bbox.pyx"],
+        "fast_rcnn.utils.cython_bbox",
+        ["fast_rcnn/utils/bbox.pyx"],
         extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
         include_dirs = [numpy_include]
     ),
     Extension(
-        "nms.cpu_nms",
-        ["nms/cpu_nms.pyx"],
+        "fast_rcnn.nms.cpu_nms",
+        ["fast_rcnn/nms/cpu_nms.pyx"],
         extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
         include_dirs = [numpy_include]
     ),
-    Extension('nms.gpu_nms',
-        ['nms/nms_kernel.cu', 'nms/gpu_nms.pyx'],
+    Extension('fast_rcnn.nms.gpu_nms',
+        ['fast_rcnn/nms/nms_kernel.cu', 'fast_rcnn/nms/gpu_nms.pyx'],
         library_dirs=[CUDA['lib64']],
         libraries=['cudart'],
         language='c++',
@@ -140,8 +140,8 @@ ext_modules = [
         include_dirs = [numpy_include, CUDA['include']]
     ),
     Extension(
-        'pycocotools._mask',
-        sources=['pycocotools/maskApi.c', 'pycocotools/_mask.pyx'],
+        'fast_rcnn.pycocotools._mask',
+        sources=['fast_rcnn/pycocotools/maskApi.c', 'fast_rcnn/pycocotools/_mask.pyx'],
         include_dirs = [numpy_include, 'pycocotools'],
         extra_compile_args={
             'gcc': ['-Wno-cpp', '-Wno-unused-function', '-std=c99']},
@@ -151,6 +151,7 @@ ext_modules = [
 setup(
     name='fast_rcnn',
     ext_modules=ext_modules,
+    packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets'],
     # inject our custom trigger
     cmdclass={'build_ext': custom_build_ext},
 )
