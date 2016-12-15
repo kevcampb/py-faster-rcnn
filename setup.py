@@ -154,4 +154,5 @@ setup(
     packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets'],
     # inject our custom trigger
     cmdclass={'build_ext': custom_build_ext},
+    install_requires=['Cython','numpy'],
 )
