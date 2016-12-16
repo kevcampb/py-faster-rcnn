@@ -105,18 +105,15 @@ def _get_blobs(im, rois):
         blobs['rois'] = _get_rois_blob(rois, im_scale_factors)
     return blobs, im_scale_factors
 
-def im_detect(net, im, boxes=None):
-    """Detect object classes in an image given object proposals.
+def preprocess(im, boxes=None):
+    """ Preprocess an img ready to feed to caffe
 
-    Arguments:
-        net (caffe.Net): Fast R-CNN network to use
-        im (ndarray): color image to test (in BGR order)
-        boxes (ndarray): R x 4 array of object proposals or None (for RPN)
+        Returns back a dictionary with the data to set on various layers
+        in order to run the network correctly
 
-    Returns:
-        scores (ndarray): R x K array of object class scores (K includes
-            background as object category 0)
-        boxes (ndarray): R x (4*K) array of predicted bounding boxes
+        * data - np.array, presumably scaled image 
+        * im_info - Seems to be (width, height, scale_factor)
+        * rois - Not clear on this one
     """
     blobs, im_scales = _get_blobs(im, boxes)
 
@@ -138,24 +135,23 @@ def im_detect(net, im, boxes=None):
             [[im_blob.shape[2], im_blob.shape[3], im_scales[0]]],
             dtype=np.float32)
 
-    # reshape network inputs
-    net.blobs['data'].reshape(*(blobs['data'].shape))
-    if cfg.TEST.HAS_RPN:
-        net.blobs['im_info'].reshape(*(blobs['im_info'].shape))
-    else:
-        net.blobs['rois'].reshape(*(blobs['rois'].shape))
-
     # do forward
     forward_kwargs = {'data': blobs['data'].astype(np.float32, copy=False)}
     if cfg.TEST.HAS_RPN:
         forward_kwargs['im_info'] = blobs['im_info'].astype(np.float32, copy=False)
     else:
         forward_kwargs['rois'] = blobs['rois'].astype(np.float32, copy=False)
-    blobs_out = net.forward(**forward_kwargs)
+
+    return im_scales, forward_kwargs
+
+def postprocess(blobs_out, rois, im_scales, im_shape):
+    """ Reads the output of the network layers and returns back a 
+        tuple of 
+    """
 
     if cfg.TEST.HAS_RPN:
         assert len(im_scales) == 1, "Only single-image batch implemented"
-        rois = net.blobs['rois'].data.copy()
+        rois = rois.copy()
         # unscale back to raw image space
         boxes = rois[:, 1:5] / im_scales[0]
 
@@ -171,7 +167,7 @@ def im_detect(net, im, boxes=None):
         # Apply bounding-box regression deltas
         box_deltas = blobs_out['bbox_pred']
         pred_boxes = bbox_transform_inv(boxes, box_deltas)
-        pred_boxes = clip_boxes(pred_boxes, im.shape)
+        pred_boxes = clip_boxes(pred_boxes, im_shape)
     else:
         # Simply repeat the boxes, once for each class
         pred_boxes = np.tile(boxes, (1, scores.shape[1]))
@@ -182,6 +178,32 @@ def im_detect(net, im, boxes=None):
         pred_boxes = pred_boxes[inv_index, :]
 
     return scores, pred_boxes
+
+def im_detect(net, im, boxes=None):
+    """Detect object classes in an image given object proposals.
+
+    Arguments:
+        net (caffe.Net): Fast R-CNN network to use
+        im (ndarray): color image to test (in BGR order)
+        boxes (ndarray): R x 4 array of object proposals or None (for RPN)
+
+    Returns:
+        scores (ndarray): R x K array of object class scores (K includes
+            background as object category 0)
+        boxes (ndarray): R x (4*K) array of predicted bounding boxes
+    """
+    forward_kwargs = preprocess(im, boxes)
+
+    # reshape network inputs
+    net.blobs['data'].reshape(*(forward_kwargs['data'].shape))
+    if cfg.TEST.HAS_RPN:
+        net.blobs['im_info'].reshape(*(blobs['im_info'].shape))
+    else:
+        net.blobs['rois'].reshape(*(blobs['rois'].shape))
+
+    blobs_out = net.forward(**forward_kwargs)
+    return postprocess(blobs_out)
+
 
 def vis_detections(im, class_name, dets, thresh=0.3):
     """Visual debugging of detections."""

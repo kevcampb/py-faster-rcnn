@@ -9,9 +9,28 @@ import os
 from os.path import join as pjoin
 from setuptools import setup
 from distutils.extension import Extension
-from Cython.Distutils import build_ext
 import subprocess
 import numpy as np
+
+try:
+    import Cython
+    _CYTHON_INSTALLED = True
+except ImportError:
+    _CYTHON_INSTALLED = False
+
+from distutils.command.build_ext import build_ext as _build_ext
+
+if _CYTHON_INSTALLED:
+    try:
+        from Cython.Distutils.old_build_ext import old_build_ext as _build_ext
+    except ImportError:
+        # Pre 0.25
+        from Cython.Distutils import build_ext as _build_ext
+
+class build_ext(_build_ext):
+    def build_extensions(self):
+        customize_compiler_for_nvcc(self.compiler)
+        _build_ext.build_extensions(self)
 
 def find_in_path(name, path):
     "Find a file in a search path"
@@ -102,12 +121,6 @@ def customize_compiler_for_nvcc(self):
     self._compile = _compile
 
 
-# run the customize_compiler
-class custom_build_ext(build_ext):
-    def build_extensions(self):
-        customize_compiler_for_nvcc(self.compiler)
-        build_ext.build_extensions(self)
-
 
 ext_modules = [
     Extension(
@@ -151,8 +164,8 @@ ext_modules = [
 setup(
     name='fast_rcnn',
     ext_modules=ext_modules,
-    packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets'],
+    packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets', 'fast_rcnn.rpn'],
     # inject our custom trigger
-    cmdclass={'build_ext': custom_build_ext},
+    cmdclass = {'build_ext': build_ext},
     install_requires=['Cython','numpy'],
 )
