@@ -6,11 +6,17 @@
 # --------------------------------------------------------
 
 import os
+import sys
 from os.path import join as pjoin
 from setuptools import setup
 from distutils.extension import Extension
 import subprocess
-import numpy as np
+
+try:
+    import numpy as np
+    _NUMPY_INSTALLED = True
+except ImportError:
+    _NUMPY_INSTALLED = False
 
 try:
     import Cython
@@ -78,10 +84,13 @@ CUDA = locate_cuda()
 
 
 # Obtain the numpy include directory.  This logic works across numpy versions.
-try:
-    numpy_include = np.get_include()
-except AttributeError:
-    numpy_include = np.get_numpy_include()
+if _NUMPY_INSTALLED:
+    try:
+        numpy_include = np.get_include()
+    except AttributeError:
+        numpy_include = np.get_numpy_include()
+else:
+    numpy_include = None
 
 def customize_compiler_for_nvcc(self):
     """inject deep into distutils to customize how the dispatch
@@ -119,6 +128,8 @@ def customize_compiler_for_nvcc(self):
 
     # inject our redefined _compile method into the class
     self._compile = _compile
+
+
 
 
 
@@ -161,11 +172,24 @@ ext_modules = [
     ),
 ]
 
-setup(
-    name='fast_rcnn',
-    ext_modules=ext_modules,
-    packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets', 'fast_rcnn.rpn'],
-    # inject our custom trigger
-    cmdclass = {'build_ext': build_ext},
-    install_requires=['Cython','numpy'],
-)
+if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == 'egg_info':
+        extra = {}
+    else:
+        if not _NUMPY_INSTALLED:
+            print('To install py-faster-rcnn from source, you will need numpy.\n' +
+                  'Install numpy with pip:\n' +
+                  'pip install numpy\n'
+                  'Or use your operating system package manager. For more\n' +
+                  'details, see http://scikit-image.org/docs/stable/install.html')
+            sys.exit(1)            
+
+    setup(
+        name='fast_rcnn',
+        ext_modules=ext_modules,
+        packages=['fast_rcnn', 'fast_rcnn.nms', 'fast_rcnn.pycocotools', 'fast_rcnn.utils', 'fast_rcnn.datasets', 'fast_rcnn.rpn'],
+        # inject our custom trigger
+        cmdclass = {'build_ext': build_ext},
+        build_requires=['Cython','numpy'],
+        install_requires=['Cython','numpy'],
+    )
